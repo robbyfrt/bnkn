@@ -1,0 +1,260 @@
+/* ── Finance Dashboard — Dark Theme ──────────────────────────────────── */
+
+:root {
+    --bg: #171614;
+    --surface: #1C1B19;
+    --surface-alt: #201F1D;
+    --border: #393836;
+    --text: #CDCCCA;
+    --text-muted: #797876;
+    --text-faint: #5A5957;
+    --primary: #4F98A3;
+    --primary-hover: #227F8B;
+    --error: #D163A7;
+    --warning: #BB653B;
+    --success: #6DAA45;
+    --radius: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    background-color: var(--bg) !important;
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── App Container ────────────────────────────────────────────────── */
+
+.app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px 32px;
+}
+
+/* ── Header ───────────────────────────────────────────────────────── */
+
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+}
+
+.header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.app-title {
+    font-weight: 700 !important;
+    font-size: 20px !important;
+    color: var(--text) !important;
+    margin: 0 !important;
+    letter-spacing: -0.02em;
+}
+
+.app-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────── */
+
+.main-tabs {
+    margin-bottom: 16px;
+}
+
+.main-tabs .nav-link {
+    color: var(--text-muted) !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    background: none !important;
+    padding: 8px 16px !important;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.main-tabs .nav-link:hover {
+    color: var(--text) !important;
+    border-bottom-color: var(--text-faint) !important;
+}
+
+.main-tabs .nav-link.active {
+    color: var(--primary) !important;
+    border-bottom-color: var(--primary) !important;
+    background: none !important;
+}
+
+.main-tabs .tab-content {
+    padding-top: 8px;
+}
+
+/* ── KPI Cards ────────────────────────────────────────────────────── */
+
+.kpi-row {
+    margin-bottom: 16px;
+}
+
+.kpi-card {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+}
+
+.kpi-card .card-body {
+    padding: 16px !important;
+}
+
+.kpi-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.kpi-value {
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    margin-bottom: 2px !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+.kpi-sub {
+    font-size: 12px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Controls ─────────────────────────────────────────────────────── */
+
+.controls-row {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.month-dropdown .Select-control,
+.month-dropdown .Select-menu-outer {
+    background-color: var(--surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+
+/* Dash dropdown dark styling */
+.Select-control {
+    background-color: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+.Select-value-label,
+.Select-placeholder {
+    color: var(--text) !important;
+}
+.Select-menu-outer {
+    background-color: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+.VirtualizedSelectOption {
+    background-color: var(--surface) !important;
+    color: var(--text) !important;
+}
+.VirtualizedSelectFocusedOption {
+    background-color: var(--surface-alt) !important;
+}
+
+.timeline-radio .form-check {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 8px;
+}
+
+.timeline-radio .form-check-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timeline-radio .form-check-input:checked + .form-check-label {
+    color: var(--primary);
+    border-color: var(--primary);
+    background-color: rgba(79, 152, 163, 0.1);
+}
+
+.timeline-radio .form-check-input {
+    display: none;
+}
+
+/* ── Section Titles ───────────────────────────────────────────────── */
+
+.section-title {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    margin-bottom: 4px !important;
+}
+
+.section-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+/* ── Data Table ───────────────────────────────────────────────────── */
+
+.dash-table-container {
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.dash-table-container .dash-spreadsheet-container {
+    background: var(--bg) !important;
+}
+
+.previous-next-container {
+    background: var(--surface) !important;
+    border-top: 1px solid var(--border);
+    padding: 8px 12px;
+}
+
+.page-number {
+    color: var(--text-muted) !important;
+}
+
+.previous-next-container button {
+    color: var(--primary) !important;
+}
+
+/* ── Charts ───────────────────────────────────────────────────────── */
+
+.js-plotly-plot .plotly .modebar {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.js-plotly-plot:hover .plotly .modebar {
+    opacity: 0.7;
+}
+
+/* ── Utility ──────────────────────────────────────────────────────── */
+
+.row {
+    --bs-gutter-x: 16px;
+}

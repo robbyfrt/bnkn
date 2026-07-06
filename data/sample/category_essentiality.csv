@@ -1,0 +1,7 @@
+type,subtype,essentiality
+Food,supermarkt,essential
+Rent,rent,essential
+Auto,other,adjustable
+Income,nebenjob,essential
+Savings,other,adjustable
+CustomType,other,optional
