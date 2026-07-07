@@ -495,7 +495,7 @@ tab_transactions = dbc.Tab(label="Transactions", tab_id="tab-transactions", chil
         dbc.Col(month_selector("tx-month-input"), md=3, id="tx-month-wrapper"),
         dbc.Col(
             dbc.Button(
-                "📥 Export Deduped CSV",
+                "📥 Save Working Ledger",
                 id="export-csv-btn",
                 color="primary",
                 size="sm",
