@@ -16,10 +16,22 @@ from io import StringIO
 # Resolve assets/ relative to this file (inside the package)
 _PKG_DIR = Path(__file__).parent
 
-from .data_loader import COLS, DISPLAY_COLUMNS, load_combined, sort_transactions
+from .data_loader import (
+    COLS,
+    DISPLAY_COLUMNS,
+    load_working_ledger,
+    load_raw_exports,
+    merge_new_transactions,
+    save_ledger,
+    sort_transactions,
+)
 from .categorizer import (
-    load_mapping, categorize_dataframe, get_unknown_transactions,
-    get_categorization_stats, export_unknowns_for_n8n,
+    load_mapping,
+    categorize_dataframe,
+    categorize_unknowns,
+    get_unknown_transactions,
+    get_categorization_stats,
+    export_unknowns_for_n8n,
 )
 from .charts import (
     make_timeseries, make_comparison_bar, make_sunburst,
@@ -31,18 +43,34 @@ from . import callbacks_scenario  # Register scenario callbacks
 # ── Configuration ─────────────────────────────────────────────────────────
 
 DATA_DIR = Path("data/sample")
-BIGCSV = DATA_DIR / "combined.csv"
-YTD_FILE = DATA_DIR / "transactions.csv"
 MAPPING_FILE = DATA_DIR / Path("mapping.csv")
-ESSENTIALITY_FILE = DATA_DIR /Path("category_essentiality.csv")
+ESSENTIALITY_FILE = DATA_DIR / Path("category_essentiality.csv")
 AVG_WINDOW = 3  # rolling average in months
 
 # ── Data Pipeline ─────────────────────────────────────────────────────────
 
 print("Loading data...")
-df = load_combined(BIGCSV, YTD_FILE if YTD_FILE.exists() else None)
+
+df_ledger = load_working_ledger(latest_only=True)
+try:
+    df_raw = load_raw_exports()
+except FileNotFoundError:
+    df_raw = None
+
+if df_ledger is None and df_raw is None:
+    raise RuntimeError(
+        "No working ledger and no raw bank exports found. "
+        "Place CSV exports in raw_bank_exports/ or create a ledger in working_ledger/."
+    )
+
+if df_raw is not None:
+    df = merge_new_transactions(df_ledger if df_ledger is not None else pd.DataFrame(), df_raw)
+else:
+    df = df_ledger
+
 mapping = load_mapping(MAPPING_FILE)
-df = categorize_dataframe(df, mapping)
+df = categorize_unknowns(df, mapping)
+df = sort_transactions(df)
 
 stats = get_categorization_stats(df)
 print(f"Loaded {stats['total_transactions']} transactions "
@@ -694,10 +722,10 @@ def reload_mapping(n_clicks):
     # Reload mapping.csv
     mapping = load_mapping(MAPPING_FILE)
 
-    # Re-categorize all transactions
-    df = categorize_dataframe(df, mapping)
+    # Re-categorize only currently unknown transactions
+    df = categorize_unknowns(df, mapping)
 
-    print(f"Remapped: {len(mapping['keyword'].dropna())} rules applied")
+    print(f"Remapped unknowns: {len(mapping['keyword'].dropna())} rules applied")
 
     return mapping.to_dict("records")
 
@@ -733,7 +761,7 @@ def update_sunburst(_month):
     Input("tx-month-input", "value"),
 )
 def update_table_filter(month):
-    query = "{Buchungstag} scontains " + pd.Timestamp(month).date().__str__()[:-3]
+    query = "{Buchungsdatum} scontains " + pd.Timestamp(month).date().__str__()[:-3]
     sort_by = [{"column_id": COLS["amount"], "direction": "asc"}]
     return query, sort_by
 
@@ -764,10 +792,14 @@ def export_deduped_csv(n_clicks):
     dropped_count = original_count - len(deduped)
     print(f"Deduplication: dropped {dropped_count} exact duplicate lines ({dropped_count/original_count*100:.1f}%)")
     
-    # Return as CSV download
+    # Persist ledger snapshot for user workflow
+    ledger_path = save_ledger(deduped)
+    print(f"Saved working ledger to {ledger_path}")
+
+    # Return as CSV download as well
     return dcc.send_data_frame(
         deduped.to_csv,
-        filename=f"finance_deduped_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        filename=f"finance_ledger_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
         index=False,
     )
 

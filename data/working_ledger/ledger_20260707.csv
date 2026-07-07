@@ -1,0 +1,2 @@
+Buchungsdatum,Wertstellung,Status,Zahlungspflichtige*r,Zahlungsempfänger*in,Verwendungszweck,Umsatztyp,IBAN,Betrag (€),Gläubiger-ID,Mandatsreferenz,Kundenreferenz,spending_type,subtype,confidence,matched_keyword
+2025-12-29,2025-12-29,Gebucht,ISSUER,Aral,VISA Debitkartenumsatz vom 26.12.2025,Ausgang,DESOMEIBAN1234,-50,,,1234,Auto,other,high,Aral

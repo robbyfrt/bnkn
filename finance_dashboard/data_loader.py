@@ -5,15 +5,15 @@ Handles multiple CSV export schema versions from German banks.
 import pandas as pd
 from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass
+from datetime import datetime
 
 
-# Canonical column names used throughout the app
+# Canonical column names used throughout the app (raw bank export schema)
 COLS = {
-    "date": "Buchungstag",
+    "date": "Buchungsdatum",
     "value_date": "Wertstellung",
-    "amount": "Betrag (EUR)",
-    "recipient": "Auftraggeber / Begünstigter",
+    "amount": "Betrag (€)",
+    "recipient": "Zahlungsempfänger*in",
     "purpose": "Verwendungszweck",
     "account": "Kontonummer",
     "payer": "Zahlungspflichtige*r",
@@ -28,167 +28,162 @@ DISPLAY_COLUMNS = [
     COLS["recipient"], COLS["purpose"],
 ]
 
+# Base paths (relative to project root)
+RAW_EXPORTS_DIR = Path("data/raw_bank_exports")
+LEDGER_DIR = Path("data/working_ledger")
+LEDGER_BASENAME = "ledger"
 
-@dataclass
-class SchemaVersion:
-    """Describes a bank CSV export schema version."""
-    name: str
-    encoding: str
-    separator: str
-    skiprows: int
-    decimal: str
-    date_format: str
-    rename_map: dict
-    drop_columns: list
-    amount_cleanup: bool  # needs non-breaking space + € removal
+MERGE_ID_COLUMNS = [
+    COLS["date"],
+    COLS["amount"],
+    COLS["recipient"],
+    COLS["purpose"],
+]
 
+RAW_TO_CANONICAL = {
+    # no-op mapping: raw schema is canonical now
+}
 
-# Known schema versions
-SCHEMA_OLD = SchemaVersion(
-    name="legacy",
-    encoding="ansi",
-    separator=";",
-    skiprows=6,
-    decimal=",",
-    date_format="%d.%m.%Y",
-    rename_map={},
-    drop_columns=["Unnamed: 11"],
-    amount_cleanup=False,
-)
+RAW_OUTPUT_COLUMN_ORDER = [
+    "Buchungsdatum",
+    "Wertstellung",
+    "Status",
+    "Zahlungspflichtige*r",
+    "Zahlungsempfänger*in",
+    "Verwendungszweck",
+    "Umsatztyp",
+    "IBAN",
+    "Betrag (€)",
+    "Gläubiger-ID",
+    "Mandatsreferenz",
+    "Kundenreferenz",
+    "spending_type",
+    "subtype",
+    "confidence",
+    "matched_keyword",
+]
 
-SCHEMA_NEW_V1 = SchemaVersion(
-    name="new_v1",
-    encoding="utf-8",
-    separator=";",
-    skiprows=4,
-    decimal=",",
-    date_format="%d.%m.%y",
-    rename_map={
-        "Buchungsdatum": "Buchungstag",
-        "Zahlungsempfänger*in": "Auftraggeber / Begünstigter",
-        "Betrag": "Betrag (EUR)",
-    },
-    drop_columns=["Status", "Umsatztyp"],
-    amount_cleanup=True,
-)
-
-SCHEMA_NEW_V2 = SchemaVersion(
-    name="new_v2",
-    encoding="utf-8",
-    separator=";",
-    skiprows=4,
-    decimal=",",
-    date_format="%d.%m.%y",
-    rename_map={
-        "Buchungsdatum": "Buchungstag",
-        "Zahlungsempfänger*in": "Auftraggeber / Begünstigter",
-        "Betrag (€)": "Betrag (EUR)",
-    },
-    drop_columns=["Status", "Umsatztyp", "IBAN"],
-    amount_cleanup=True,
-)
+CANONICAL_TO_RAW = {v: k for k, v in RAW_TO_CANONICAL.items()}
 
 
-def detect_schema(filepath: Path) -> SchemaVersion:
-    """Auto-detect CSV schema version by peeking at headers."""
-    # Try UTF-8 first, fall back to ANSI
-    for enc in ["utf-8", "ansi"]:
-        try:
-            # Read first few lines to detect
-            with open(filepath, encoding=enc) as f:
-                lines = [f.readline() for _ in range(7)]
-            header_line = lines[4] if enc == "utf-8" else lines[6]
-
-            if "Betrag (€)" in header_line or "Betrag (€)" in header_line:
-                return SCHEMA_NEW_V2
-            elif "Buchungsdatum" in header_line:
-                return SCHEMA_NEW_V1
-            elif "Buchungstag" in header_line:
-                return SCHEMA_OLD
-        except (UnicodeDecodeError, IndexError):
-            continue
-
-    # Fallback: use filename heuristic
-    if "-" in filepath.stem:
-        return SCHEMA_NEW_V1
-    return SCHEMA_OLD
+def _detect_skiprows(filepath: Path) -> int:
+    with open(filepath, encoding="utf-8") as f:
+        first_line = f.readline()
+    if "Buchungsdatum" in first_line or "Wertstellung" in first_line:
+        return 0
+    return 4
 
 
-def load_raw_csv(filepath: Path, schema: Optional[SchemaVersion] = None) -> pd.DataFrame:
-    """Load a single bank CSV export into a normalized DataFrame."""
-    if schema is None:
-        schema = detect_schema(filepath)
-
+def load_raw_csv(filepath: Path) -> pd.DataFrame:
+    """Load the latest bank CSV export schema into a normalized DataFrame."""
+    skiprows = _detect_skiprows(filepath)
     df = pd.read_csv(
         filepath,
-        encoding=schema.encoding,
-        sep=schema.separator,
-        skiprows=schema.skiprows,
-        decimal=schema.decimal,
+        encoding="utf-8",
+        sep=";",
+        skiprows=skiprows,
+        decimal=",",
         quotechar='"',
     )
 
-    # Rename columns to canonical names
-    if schema.rename_map:
-        df = df.rename(columns=schema.rename_map)
-
-    # Drop schema-specific extra columns (ignore errors for missing cols)
-    if schema.drop_columns:
-        df = df.drop(columns=schema.drop_columns, errors="ignore")
-
-    # Clean amount column
-    amount_col = COLS["amount"]
-    if schema.amount_cleanup:
-        df[amount_col] = df[amount_col].astype(str).apply(
-            lambda x: x.replace("\xa0€", "").replace("\xa0", "")
-        )
-    df[amount_col] = (
-        df[amount_col].astype(str)
+    df[COLS["amount"]] = (
+        df[COLS["amount"]].astype(str)
         .str.replace(",", ".", regex=False)
         .astype(float)
     )
+    df[COLS["value_date"]] = pd.to_datetime(df[COLS["value_date"]], format="%d.%m.%y")
+    df[COLS["date"]] = pd.to_datetime(df[COLS["date"]], format="%d.%m.%y")
+    return df
 
-    # Parse dates
-    df[COLS["value_date"]] = pd.to_datetime(df[COLS["value_date"]], format=schema.date_format)
-    df[COLS["date"]] = pd.to_datetime(df[COLS["date"]], format=schema.date_format)
+
+def normalize_bank_export(filepath: Path) -> pd.DataFrame:
+    """Normalize a raw bank export file to canonical columns."""
+    return load_raw_csv(filepath)
+
+
+def load_working_ledger(latest_only: bool = True) -> Optional[pd.DataFrame]:
+    """Load the latest working ledger CSV from LEDGER_DIR, or None if absent."""
+    if not LEDGER_DIR.exists():
+        return None
+
+    csv_files = sorted(
+        LEDGER_DIR.glob("*.csv"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not csv_files:
+        return None
+
+    latest = csv_files[0]
+    df = pd.read_csv(latest)
+
+    if COLS["date"] not in df.columns and COLS["value_date"] in df.columns:
+        df[COLS["date"]] = df[COLS["value_date"]]
+
+    if COLS["value_date"] in df.columns:
+        df[COLS["value_date"]] = pd.to_datetime(df[COLS["value_date"]])
+    if COLS["date"] in df.columns:
+        df[COLS["date"]] = pd.to_datetime(df[COLS["date"]])
 
     return df
 
 
-def load_from_directory(raw_dir: Path, filenames: list[str]) -> pd.DataFrame:
-    """Load and concatenate multiple CSV files from a directory."""
-    frames = []
-    for name in filenames:
-        fp = raw_dir / f"{name}.csv"
-        if fp.exists():
-            frames.append(load_raw_csv(fp))
-        else:
-            print(f"Warning: {fp} not found, skipping.")
+def load_raw_exports() -> pd.DataFrame:
+    """Load and concatenate all raw bank exports from RAW_EXPORTS_DIR."""
+    if not RAW_EXPORTS_DIR.exists():
+        raise FileNotFoundError(f"No raw exports directory: {RAW_EXPORTS_DIR}")
+
+    frames: list[pd.DataFrame] = []
+    for fp in sorted(RAW_EXPORTS_DIR.glob("*.csv")):
+        frames.append(load_raw_csv(fp))
+
     if not frames:
-        raise FileNotFoundError(f"No valid CSV files found in {raw_dir}")
+        raise FileNotFoundError(f"No CSV exports found in {RAW_EXPORTS_DIR}")
+
     return pd.concat(frames, ignore_index=True)
 
 
-def load_combined(bigcsv: Path, ytd_file: Optional[Path] = None) -> pd.DataFrame:
-    """
-    Load a pre-combined CSV and optionally append a year-to-date export.
-    This is the primary loading path.
-    """
-    df = pd.read_csv(bigcsv)
-    df[COLS["value_date"]] = pd.to_datetime(df[COLS["value_date"]])
-    df[COLS["date"]] = pd.to_datetime(df[COLS["date"]])
+def merge_new_transactions(existing: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """Merge new transactions into an existing ledger and dedupe by identity."""
+    if existing is None or existing.empty:
+        combined = new.copy()
+    else:
+        combined = pd.concat([existing, new], ignore_index=True)
 
-    if ytd_file and ytd_file.exists():
-        ytd = load_raw_csv(ytd_file)
-        # Deduplicate by removing any overlap
-        if not df.empty:
-            cutoff = df[COLS["date"]].max()
-            ytd = ytd[ytd[COLS["date"]] > cutoff]
-        df = pd.concat([df, ytd], ignore_index=True)
+    combined = combined.drop_duplicates(
+        subset=MERGE_ID_COLUMNS,
+        keep="first",
+    )
 
-    return df
+    combined[COLS["value_date"]] = pd.to_datetime(combined[COLS["value_date"]])
+    combined[COLS["date"]] = pd.to_datetime(combined[COLS["date"]])
+    combined = sort_transactions(combined)
+    return combined
+
+
+def save_ledger(df: pd.DataFrame) -> Path:
+    """Persist the current working ledger to LEDGER_DIR with a timestamped filename."""
+    LEDGER_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = LEDGER_DIR / f"{LEDGER_BASENAME}_{ts}.csv"
+
+    save_df = df.copy()
+
+    if COLS["date"] not in save_df.columns and COLS["value_date"] in save_df.columns:
+        save_df[COLS["date"]] = save_df[COLS["value_date"]]
+
+    if "Zahlungspflichtige*r" not in save_df.columns:
+        save_df["Zahlungspflichtige*r"] = pd.NA
+    for extra_col in ["spending_type", "subtype", "confidence", "matched_keyword"]:
+        if extra_col not in save_df.columns:
+            save_df[extra_col] = pd.NA
+
+    ordered_cols = [col for col in RAW_OUTPUT_COLUMN_ORDER if col in save_df.columns]
+    save_df.to_csv(path, index=False, columns=ordered_cols)
+    return path
 
 
 def sort_transactions(df: pd.DataFrame) -> pd.DataFrame:
-    """Sort by date descending, reset index."""
-    return df.sort_values(by=COLS["date"], ascending=False).reset_index(drop=True)
+    """Sort by value date descending, falling back to booking date."""
+    sort_cols = [COLS["value_date"], COLS["date"]]
+    return df.sort_values(by=sort_cols, ascending=False).reset_index(drop=True)
