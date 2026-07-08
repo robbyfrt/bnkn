@@ -28,7 +28,7 @@ class CategoryResult:
 
 # Column search priority order
 SEARCH_ORDER = [
-    ("Auftraggeber", COLS["recipient"]),
+    ("Zahlungsempfänger*in", COLS["recipient"]),
     ("Verwendungszweck", COLS["purpose"]),
     ("Kontonummer", COLS["account"]),
     ("Zahlungspflichtige*r", COLS["payer"]),
