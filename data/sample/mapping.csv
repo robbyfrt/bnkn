@@ -1,7 +1,19 @@
 row,spending_type,keyword,subtype
-Auftraggeber,Food,Aldi,supermarkt
-Auftraggeber,Food,ALDI,supermarkt
-Auftraggeber,Rent,Miete,rent
-Auftraggeber,Auto,Aral
-Verwendungszweck,Income,Gehalt,nebenjob
-Zahlungspflichtige*r,CustomType,SomeDude
+Zahlungsempfänger*in,Income,Sample Corp,salary
+Verwendungszweck,Income,Gehalt,salary
+Zahlungsempfänger*in,Recurring,Mustervermieter,rent
+Zahlungsempfänger*in,Recurring,Streaming GmbH,subscriptions
+Zahlungsempfänger*in,Recurring,Gym Studio,gym
+Zahlungsempfänger*in,Food,Aldi,supermarkt
+Zahlungsempfänger*in,Takeout,Lieferando,delivery
+Zahlungsempfänger*in,Car,Aral,fuel
+Zahlungsempfänger*in,Stuff,Amazon Payments,online
+Zahlungsempfänger*in,Travel+Fun,Deutsche Bahn,transport
+Zahlungsempfänger*in,Savings,Sparkonto Transfer,savings
+Zahlungsempfänger*in,Unique,Zahnarzt,health
+Zahlungsempfänger*in,Unique,Mediamarkt,electronics
+Zahlungsempfänger*in,Unique,Optiker,health
+Zahlungsempfänger*in,Unique,Fluggesellschaft,travel
+Zahlungsempfänger*in,Unique,Reparatur,maintenance
+Zahlungsempfänger*in,Unique,Online Shop,shopping
+Zahlungsempfänger*in,Unique,Konzert,entertainment
