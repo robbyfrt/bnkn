@@ -10,6 +10,7 @@ dependencies = [
     "dash-bootstrap-templates>=2.1.0",
     "pandas>=3.0.2",
     "plotly>=6.6.0",
+    "PyYAML>=6.0",
     "pytest>=9.1.1",
 ]
 

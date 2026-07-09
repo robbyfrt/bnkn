@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
+from .config import CONFIG
+
 
 # Canonical column names used throughout the app (raw bank export schema)
 COLS = {
@@ -28,9 +30,9 @@ DISPLAY_COLUMNS = [
     COLS["recipient"], COLS["purpose"],
 ]
 
-# Base paths (relative to project root)
-RAW_EXPORTS_DIR = Path("data/raw_bank_exports")
-LEDGER_DIR = Path("data/working_ledger")
+# Base paths from config
+RAW_EXPORTS_DIR = CONFIG["paths"]["raw_exports_dir"]
+LEDGER_DIR = CONFIG["paths"]["ledger_dir"]
 LEDGER_BASENAME = "ledger"
 
 MERGE_ID_COLUMNS = [

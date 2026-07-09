@@ -16,6 +16,7 @@ from io import StringIO
 # Resolve assets/ relative to this file (inside the package)
 _PKG_DIR = Path(__file__).parent
 
+from .config import CONFIG
 from .data_loader import (
     COLS,
     DISPLAY_COLUMNS,
@@ -42,10 +43,15 @@ from . import callbacks_scenario  # Register scenario callbacks
 
 # ── Configuration ─────────────────────────────────────────────────────────
 
-DATA_DIR = Path("data/sample")
-MAPPING_FILE = DATA_DIR / Path("mapping.csv")
-ESSENTIALITY_FILE = DATA_DIR / Path("category_essentiality.csv")
-AVG_WINDOW = 3  # rolling average in months
+MAPPING_FILE = CONFIG["paths"]["mapping_file"]
+ESSENTIALITY_FILE = CONFIG["paths"]["essentiality_file"]
+AVG_WINDOW = CONFIG["analysis"]["avg_window"]
+THEME = CONFIG["app"]["theme"]
+EXTERNAL_STYLESHEETS = CONFIG["app"]["external_stylesheets"]
+GRAPH_CONFIG = CONFIG["app"]["graphs"]
+SCENARIO_YEAR = CONFIG["scenarios"]["reference_year"]
+SCENARIO_EXCLUDE_TYPES = set(CONFIG["scenarios"]["exclude_types"])
+SERVER_CONFIG = CONFIG["app"]["server"]
 
 # ── Data Pipeline ─────────────────────────────────────────────────────────
 
@@ -108,10 +114,10 @@ costs_avg = costs_mthly.rolling(AVG_WINDOW).mean().round(0)
 df = sort_transactions(df)
 unknowns = get_unknown_transactions(df)
 
-# Build baseline aggregates for scenario tab (exclude Income, use 2025 average)
+# Build baseline aggregates for scenario tab (exclude configured reference year average)
 baseline_data = []
-# Filter to 2025 data only
-df_2025 = df[df[COLS["value_date"]].dt.year == 2026]
+# Filter to configured reference year only
+df_2025 = df[df[COLS["value_date"]].dt.year == SCENARIO_YEAR]
 costs_2025_subtypes = (
     df_2025.pivot_table(
         columns=[COLS["type"], COLS["subtype"]],
@@ -131,7 +137,7 @@ if ESSENTIALITY_FILE.exists():
         essentiality_defaults[key] = row["essentiality"]
 
 for (spending_type, subtype), col_data in costs_2025_subtypes.items():
-    if spending_type == "Income":  # Skip income for scenario planning
+    if spending_type in SCENARIO_EXCLUDE_TYPES:  # Skip configured excluded types for scenario planning
         continue
     baseline_amount = col_data.mean()
     key = f"{spending_type}/{subtype}"
@@ -164,15 +170,19 @@ income_2025 = -df_2025[df_2025[COLS["type"]] == "Income"][COLS["amount"]].sum() 
 
 # ── App Setup ─────────────────────────────────────────────────────────────
 
-load_figure_template("darkly")
+theme_stylesheet = getattr(dbc.themes, THEME.upper(), None)
+figure_theme = THEME.lower()
+load_figure_template(figure_theme)
+
+external_stylesheets = []
+if theme_stylesheet is not None:
+    external_stylesheets.append(theme_stylesheet)
+external_stylesheets.extend(EXTERNAL_STYLESHEETS)
 
 app = Dash(
     __name__,
     assets_folder=str(_PKG_DIR / "assets"),
-    external_stylesheets=[
-        dbc.themes.DARKLY,
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
-    ],
+    external_stylesheets=external_stylesheets,
     suppress_callback_exceptions=True,
 )
 
@@ -253,13 +263,13 @@ tab_overview = dbc.Tab(label="Overview", tab_id="tab-overview", children=[
 
     # Time series
     dbc.Row([
-        dbc.Col(dcc.Graph(id="ts-chart", figure={}, config={"displayModeBar": False}), md=12),
+        dbc.Col(dcc.Graph(id="ts-chart", figure={}, config={"displayModeBar": GRAPH_CONFIG.get("display_mode_bar", False)}), md=12),
     ]),
 
     # Comparison + Sunburst
     dbc.Row([
-        dbc.Col(dcc.Graph(id="comparison-chart", figure={}, config={"displayModeBar": False}), md=8),
-        dbc.Col(dcc.Graph(id="sunburst-chart", figure={}, config={"displayModeBar": False}), md=4),
+        dbc.Col(dcc.Graph(id="comparison-chart", figure={}, config={"displayModeBar": GRAPH_CONFIG.get("display_mode_bar", False)}), md=8),
+        dbc.Col(dcc.Graph(id="sunburst-chart", figure={}, config={"displayModeBar": GRAPH_CONFIG.get("display_mode_bar", False)}), md=4),
     ]),
 ])
 
@@ -808,7 +818,11 @@ def export_deduped_csv(n_clicks):
 
 def main():
     """Entry point for `uvx finance-dashboard` or `finance-dashboard` CLI."""
-    app.run(debug=True, host="0.0.0.0", port=8050)
+    app.run(
+        debug=SERVER_CONFIG.get("debug", False),
+        host=SERVER_CONFIG.get("host", "0.0.0.0"),
+        port=SERVER_CONFIG.get("port", 8050),
+    )
 
 
 if __name__ == "__main__":

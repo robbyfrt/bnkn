@@ -3,7 +3,10 @@ Scenario planning tab layout.
 """
 import dash_bootstrap_components as dbc
 from dash import html, dcc, dash_table
+from .config import CONFIG
 from .charts import PALETTE, CATEGORY_COLORS
+
+GRAPH_CONFIG = CONFIG["app"]["graphs"]
 
 
 def scenario_layout(initial_table_data=None):
@@ -130,7 +133,7 @@ def scenario_layout(initial_table_data=None):
                     dcc.Graph(
                         id="scenario-chart",
                         figure={},
-                        config={"displayModeBar": False},
+                        config={"displayModeBar": GRAPH_CONFIG.get("display_mode_bar", False)},
                     ),
                                 # Assumption log (under chart, right side)
                     dbc.Row([
