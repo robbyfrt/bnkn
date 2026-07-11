@@ -23,3 +23,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["finance_dashboard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
