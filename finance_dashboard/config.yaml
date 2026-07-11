@@ -1,5 +1,5 @@
 data:
-  mapping_file: ./data/mapping.csv
+  mapping_file: ./data/sample_mapping.csv
   raw_exports_dir: ./data/raw_bank_exports
   ledger_dir: ./data/working_ledger
 
