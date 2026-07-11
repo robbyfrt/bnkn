@@ -130,9 +130,9 @@ costs_2025_subtypes = (
     .resample("1ME").sum()
 )
 
-# Load essentiality defaults from CSV
+# Load essentiality defaults from CSV when available
 essentiality_defaults = {}
-if ESSENTIALITY_FILE.exists():
+if ESSENTIALITY_FILE is not None and ESSENTIALITY_FILE.exists():
     ess_df = pd.read_csv(ESSENTIALITY_FILE)
     for _, row in ess_df.iterrows():
         key = f"{row['type']}/{row['subtype']}"

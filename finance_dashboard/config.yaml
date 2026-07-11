@@ -1,9 +1,7 @@
 data:
-  base_dir: data/sample
-  mapping_file: mapping.csv
-  essentiality_file: category_essentiality.csv
-  raw_exports_dir: data/raw_bank_exports
-  ledger_dir: data/working_ledger
+  mapping_file: ./data/mapping.csv
+  raw_exports_dir: ./data/raw_bank_exports
+  ledger_dir: ./data/working_ledger
 
 analysis:
   avg_window: 3
@@ -14,6 +12,7 @@ analysis:
 
 # scenarios:
 #   reference_year: 2026
+#   essentiality_file: data/category_essentiality.csv
 #   exclude_types:
 #     - Income
 

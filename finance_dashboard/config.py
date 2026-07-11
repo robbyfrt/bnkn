@@ -11,11 +11,9 @@ CONFIG_FILE = Path(__file__).resolve().parent / "config.yaml"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "data": {
-        "base_dir": "data/sample",
-        "mapping_file": "mapping.csv",
-        "essentiality_file": "category_essentiality.csv",
-        "raw_exports_dir": "data/raw_bank_exports",
-        "ledger_dir": "data/working_ledger",
+        "mapping_file": "./data/mapping.csv",
+        "raw_exports_dir": "./data/raw_bank_exports",
+        "ledger_dir": "./data/working_ledger",
     },
     "analysis": {
         "avg_window": 3,
@@ -59,14 +57,20 @@ def _resolve_path(value: str | Path, root: Path) -> Path:
 
 def _resolve_data_paths(config: dict[str, Any]) -> dict[str, Path]:
     data_cfg = config["data"]
-    data_dir = _resolve_path(data_cfg["base_dir"], ROOT_DIR)
     paths = {
-        "data_dir": data_dir,
-        "mapping_file": _resolve_path(data_cfg["mapping_file"], data_dir),
-        "essentiality_file": _resolve_path(data_cfg["essentiality_file"], data_dir),
+        "data_dir": ROOT_DIR / "data",
+        "mapping_file": _resolve_path(data_cfg["mapping_file"], ROOT_DIR),
         "raw_exports_dir": _resolve_path(data_cfg["raw_exports_dir"], ROOT_DIR),
         "ledger_dir": _resolve_path(data_cfg["ledger_dir"], ROOT_DIR),
     }
+
+    scenarios_cfg = config.get("scenarios")
+    if isinstance(scenarios_cfg, dict):
+        essentiality_file = scenarios_cfg.get("essentiality_file")
+        paths["essentiality_file"] = _resolve_path(essentiality_file, ROOT_DIR) if essentiality_file else None
+    else:
+        paths["essentiality_file"] = None
+
     if isinstance(config.get("n8n"), dict):
         paths["unknowns_for_n8n"] = _resolve_path(config["n8n"]["unknowns_output"], ROOT_DIR)
     else:

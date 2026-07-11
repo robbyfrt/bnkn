@@ -24,7 +24,7 @@ uv run python -m finance_dashboard.app
 
 ## Configuration
 
-Most runtime settings now live in [finance_dashboard/config.yaml](finance_dashboard/config.yaml). Adjust paths, chart defaults, and other app behavior there without changing Python code.
+Most runtime settings now live in [finance_dashboard/config.yaml](finance_dashboard/config.yaml). Adjust paths, chart defaults, and other app behavior there without changing Python code. The repo contains a sample dataset to demo it and understand the expected file structures.
 
 ## Folder structure
 
