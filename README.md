@@ -22,6 +22,10 @@ Run the app:
 uv run python -m finance_dashboard.app
 ```
 
+## Configuration
+
+Most runtime settings now live in [finance_dashboard/config.yaml](finance_dashboard/config.yaml). Adjust paths, chart defaults, and other app behavior there without changing Python code.
+
 ## Folder structure
 
 ```text

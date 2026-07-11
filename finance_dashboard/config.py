@@ -22,10 +22,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "rolling_window_months": 3,
         "reorder_last": ["Savings", "Income"],
     },
-    "scenarios": {
-        "reference_year": 2026,
-        "exclude_types": ["Income"],
-    },
+    "scenarios": None,
     "app": {
         "theme": "DARKLY",
         "external_stylesheets": [
@@ -33,6 +30,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         ],
         "graphs": {
             "display_mode_bar": False,
+            "timeseries_y_range": [-1500, 100],
         },
         "server": {
             "host": "0.0.0.0",
@@ -40,9 +38,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "debug": True,
         },
     },
-    "n8n": {
-        "unknowns_output": "data/unknowns_for_n8n.json",
-    },
+    "n8n": None,
 }
 
 
@@ -64,14 +60,18 @@ def _resolve_path(value: str | Path, root: Path) -> Path:
 def _resolve_data_paths(config: dict[str, Any]) -> dict[str, Path]:
     data_cfg = config["data"]
     data_dir = _resolve_path(data_cfg["base_dir"], ROOT_DIR)
-    return {
+    paths = {
         "data_dir": data_dir,
         "mapping_file": _resolve_path(data_cfg["mapping_file"], data_dir),
         "essentiality_file": _resolve_path(data_cfg["essentiality_file"], data_dir),
         "raw_exports_dir": _resolve_path(data_cfg["raw_exports_dir"], ROOT_DIR),
         "ledger_dir": _resolve_path(data_cfg["ledger_dir"], ROOT_DIR),
-        "unknowns_for_n8n": _resolve_path(config["n8n"]["unknowns_output"], ROOT_DIR),
     }
+    if isinstance(config.get("n8n"), dict):
+        paths["unknowns_for_n8n"] = _resolve_path(config["n8n"]["unknowns_output"], ROOT_DIR)
+    else:
+        paths["unknowns_for_n8n"] = None
+    return paths
 
 
 def load_config(config_path: Path | None = None) -> dict[str, Any]:

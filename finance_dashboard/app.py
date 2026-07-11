@@ -49,8 +49,10 @@ AVG_WINDOW = CONFIG["analysis"]["avg_window"]
 THEME = CONFIG["app"]["theme"]
 EXTERNAL_STYLESHEETS = CONFIG["app"]["external_stylesheets"]
 GRAPH_CONFIG = CONFIG["app"]["graphs"]
-SCENARIO_YEAR = CONFIG["scenarios"]["reference_year"]
-SCENARIO_EXCLUDE_TYPES = set(CONFIG["scenarios"]["exclude_types"])
+SCENARIOS_ENABLED = isinstance(CONFIG.get("scenarios"), dict)
+SCENARIO_YEAR = CONFIG["scenarios"].get("reference_year", 2026) if SCENARIOS_ENABLED else 2026
+SCENARIO_EXCLUDE_TYPES = set(CONFIG["scenarios"].get("exclude_types", ["Income"])) if SCENARIOS_ENABLED else set()
+N8N_ENABLED = isinstance(CONFIG.get("n8n"), dict)
 SERVER_CONFIG = CONFIG["app"]["server"]
 
 # ── Data Pipeline ─────────────────────────────────────────────────────────
@@ -136,37 +138,41 @@ if ESSENTIALITY_FILE.exists():
         key = f"{row['type']}/{row['subtype']}"
         essentiality_defaults[key] = row["essentiality"]
 
-for (spending_type, subtype), col_data in costs_2025_subtypes.items():
-    if spending_type in SCENARIO_EXCLUDE_TYPES:  # Skip configured excluded types for scenario planning
-        continue
-    baseline_amount = col_data.mean()
-    key = f"{spending_type}/{subtype}"
-    baseline_data.append({
-        "type": spending_type,
-        "subtype": subtype,
-        "baseline": -baseline_amount,  # Flip sign: show expenses as positive
-        "scenario_amount": -baseline_amount,
-        "delta": 0,
-        "essentiality": essentiality_defaults.get(key, "adjustable"),
-    })
+if SCENARIOS_ENABLED:
+    for (spending_type, subtype), col_data in costs_2025_subtypes.items():
+        if spending_type in SCENARIO_EXCLUDE_TYPES:  # Skip configured excluded types for scenario planning
+            continue
+        baseline_amount = col_data.mean()
+        key = f"{spending_type}/{subtype}"
+        baseline_data.append({
+            "type": spending_type,
+            "subtype": subtype,
+            "baseline": -baseline_amount,  # Flip sign: show expenses as positive
+            "scenario_amount": -baseline_amount,
+            "delta": 0,
+            "essentiality": essentiality_defaults.get(key, "adjustable"),
+        })
 
-baseline_df = pd.DataFrame(baseline_data).sort_values(["type", "subtype"]).reset_index(drop=True)
+    baseline_df = pd.DataFrame(baseline_data).sort_values(["type", "subtype"]).reset_index(drop=True)
 
-# Prepare initial table data for scenario tab
-initial_scenario_table_data = []
-for _, row in baseline_df.iterrows():
-    baseline_amount = row["baseline"]
-    initial_scenario_table_data.append({
-        "type": row["type"],
-        "subtype": row["subtype"],
-        "essentiality": row["essentiality"],
-        "baseline": round(baseline_amount, 0),
-        "scenario_amount": round(baseline_amount, 0),
-        "delta": 0,
-    })
+    # Prepare initial table data for scenario tab
+    initial_scenario_table_data = []
+    for _, row in baseline_df.iterrows():
+        baseline_amount = row["baseline"]
+        initial_scenario_table_data.append({
+            "type": row["type"],
+            "subtype": row["subtype"],
+            "essentiality": row["essentiality"],
+            "baseline": round(baseline_amount, 0),
+            "scenario_amount": round(baseline_amount, 0),
+            "delta": 0,
+        })
 
-# Calculate average monthly income for income ceiling indicator
-income_2025 = -df_2025[df_2025[COLS["type"]] == "Income"][COLS["amount"]].sum() / max(df_2025[COLS["value_date"]].dt.month.nunique(), 1) if not df_2025.empty else 0
+    # Calculate average monthly income for income ceiling indicator
+    income_2025 = -df_2025[df_2025[COLS["type"]] == "Income"][COLS["amount"]].sum() / max(df_2025[COLS["value_date"]].dt.month.nunique(), 1) if not df_2025.empty else 0
+else:
+    initial_scenario_table_data = []
+    income_2025 = 0
 
 # ── App Setup ─────────────────────────────────────────────────────────────
 
@@ -657,12 +663,12 @@ tab_unmapped = dbc.Tab(
                     className="section-sub",
                 ),
                 dcc.Graph(id="unknowns-chart", figure=make_unknowns_bar(unknowns)),
-            ], md=7),
+            ], md=12 if not N8N_ENABLED else 7),
             dbc.Col([
                 html.H5("n8n Export", className="section-title"),
                 html.P(
                     "Unknown transactions are auto-exported to "
-                    "data/unknowns_for_n8n.json on startup. "
+                    f"{CONFIG['paths']['unknowns_for_n8n']} on startup. "
                     "Use this file as webhook payload in your n8n workflow.",
                     className="section-sub",
                 ),
@@ -678,7 +684,7 @@ tab_unmapped = dbc.Tab(
                         ], style={"fontSize": "13px"}),
                     ])
                 ], className="kpi-card", style={"marginTop": "16px"}),
-            ], md=5),
+            ], md=5) if N8N_ENABLED else None,
         ]),
     ],
 )
@@ -701,7 +707,7 @@ app.layout = html.Div([
     dbc.Tabs(
         id="main-tabs",
         active_tab="tab-overview",
-        children=[tab_overview, tab_aggregates,tab_transactions, tab_mapping, tab_unmapped, scenario_layout(initial_scenario_table_data)],
+        children=[tab_overview, tab_aggregates, tab_transactions, tab_mapping, tab_unmapped] + ([scenario_layout(initial_scenario_table_data)] if SCENARIOS_ENABLED else []),
         className="main-tabs",
     ),
 
@@ -711,7 +717,7 @@ app.layout = html.Div([
         "overrides": {},
         "essentiality": essentiality_defaults,  # Initialize with CSV defaults
         "baseline_income": float(income_2025) if income_2025 > 0 else -float(income_2025),
-    }),
+    }) if SCENARIOS_ENABLED else None,
 ], className="app-container")
 
 
