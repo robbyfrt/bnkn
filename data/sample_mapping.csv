@@ -1,0 +1,19 @@
+row,spending_type,keyword,subtype
+Zahlungsempfänger*in,Income,Sample Corp,salary
+Verwendungszweck,Income,Gehalt,salary
+Zahlungsempfänger*in,Recurring,Mustervermieter,rent
+Zahlungsempfänger*in,Recurring,Streaming GmbH
+Zahlungsempfänger*in,Recurring,Gym Studio,gym
+Zahlungsempfänger*in,Food,Aldi,supermarkt
+Zahlungsempfänger*in,Takeout,Lieferando,delivery
+Zahlungsempfänger*in,Car,Aral,fuel
+Zahlungsempfänger*in,Travel+Fun,Deutsche Bahn,transport
+Zahlungsempfänger*in,Travel+Fun,Fluggesellschaft,transport
+Zahlungsempfänger*in,Travel+Fun,Konzert,entertainment
+Zahlungsempfänger*in,Savings,Sparkonto Transfer,savings
+Zahlungsempfänger*in,Stuff,Amazon Payments,online
+Zahlungsempfänger*in,Stuff,Online Shop
+Zahlungsempfänger*in,Stuff,Mediamarkt,electronics
+Zahlungsempfänger*in,Stuff,Zahnarzt,health
+Zahlungsempfänger*in,Stuff,Optiker,health
+Zahlungsempfänger*in,Unique,Reparatur,maintenance

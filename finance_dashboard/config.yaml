@@ -1,0 +1,34 @@
+data:
+  mapping_file: ./data/sample_mapping.csv
+  raw_exports_dir: ./data/raw_bank_exports
+  ledger_dir: ./data/working_ledger
+
+analysis:
+  avg_window: 3
+  rolling_window_months: 3
+  reorder_last:
+    - Savings
+    - Income
+
+# scenarios:
+#   reference_year: 2026
+#   essentiality_file: data/category_essentiality.csv
+#   exclude_types:
+#     - Income
+
+app:
+  theme: DARKLY
+  external_stylesheets:
+    - https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap
+  graphs:
+    display_mode_bar: false
+    timeseries_y_range:
+      - -550
+      - 100
+  server:
+    host: 0.0.0.0
+    port: 8050
+    debug: true
+
+# n8n:
+#   unknowns_output: data/unknowns_for_n8n.json

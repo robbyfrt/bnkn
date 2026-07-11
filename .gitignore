@@ -1,3 +1,8 @@
+data/
+!data/sample_mapping.csv
+!data/raw_bank_exports/sample_transactions.csv
+!data/working_ledger/sample_ledger.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

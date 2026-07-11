@@ -5,6 +5,7 @@ All chart creation logic isolated here for testability.
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from finance_dashboard.config import CONFIG
 from finance_dashboard.data_loader import COLS
 
 # ── Color Palette (finance-appropriate: cool, precise) ─────────────────────
@@ -99,7 +100,8 @@ def make_timeseries(
         min_dt = pd.Timestamp(selected_month) - pd.DateOffset(months=int(timeline_months))
         fig.update_xaxes(range=[min_dt, max_dt], title="")
 
-    fig.update_yaxes(range=[-1500, 100])
+    timeseries_y_range = CONFIG["app"]["graphs"].get("timeseries_y_range", [-1500, 100])
+    fig.update_yaxes(range=timeseries_y_range)
     fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
 
     # Raw values overlay (dotted)

@@ -28,7 +28,7 @@ class CategoryResult:
 
 # Column search priority order
 SEARCH_ORDER = [
-    ("Auftraggeber", COLS["recipient"]),
+    ("Zahlungsempfänger*in", COLS["recipient"]),
     ("Verwendungszweck", COLS["purpose"]),
     ("Kontonummer", COLS["account"]),
     ("Zahlungspflichtige*r", COLS["payer"]),
@@ -92,6 +92,24 @@ def categorize_dataframe(df: pd.DataFrame, mapping: pd.DataFrame) -> pd.DataFram
                 df.loc[matches, "matched_keyword"] = keyword
                 unmatched.loc[matches] = False
     
+    return df
+
+
+def categorize_unknowns(df: pd.DataFrame, mapping: pd.DataFrame) -> pd.DataFrame:
+    """Apply mapping only to transactions that are still unknown."""
+    mask_unknown = (df[COLS["type"]].isna()) | (df[COLS["type"]] == "unknown")
+    if not mask_unknown.any():
+        return df
+
+    unknown_df = df.loc[mask_unknown].copy()
+    unknown_df = categorize_dataframe(unknown_df, mapping)
+
+    for col in [COLS["type"], COLS["subtype"], "confidence", "matched_keyword"]:
+        if col not in df.columns:
+            df[col] = pd.NA
+        df[col] = df[col].astype(object)
+        df.loc[mask_unknown, col] = unknown_df[col].values
+
     return df
 
 

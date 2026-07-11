@@ -16,10 +16,23 @@ from io import StringIO
 # Resolve assets/ relative to this file (inside the package)
 _PKG_DIR = Path(__file__).parent
 
-from .data_loader import COLS, DISPLAY_COLUMNS, load_combined, sort_transactions
+from .config import CONFIG
+from .data_loader import (
+    COLS,
+    DISPLAY_COLUMNS,
+    load_working_ledger,
+    load_raw_exports,
+    merge_new_transactions,
+    save_ledger,
+    sort_transactions,
+)
 from .categorizer import (
-    load_mapping, categorize_dataframe, get_unknown_transactions,
-    get_categorization_stats, export_unknowns_for_n8n,
+    load_mapping,
+    categorize_dataframe,
+    categorize_unknowns,
+    get_unknown_transactions,
+    get_categorization_stats,
+    export_unknowns_for_n8n,
 )
 from .charts import (
     make_timeseries, make_comparison_bar, make_sunburst,
@@ -30,19 +43,42 @@ from . import callbacks_scenario  # Register scenario callbacks
 
 # ── Configuration ─────────────────────────────────────────────────────────
 
-DATA_DIR = Path("data/sample")
-BIGCSV = DATA_DIR / "combined.csv"
-YTD_FILE = DATA_DIR / "transactions.csv"
-MAPPING_FILE = DATA_DIR / Path("mapping.csv")
-ESSENTIALITY_FILE = DATA_DIR /Path("category_essentiality.csv")
-AVG_WINDOW = 3  # rolling average in months
+MAPPING_FILE = CONFIG["paths"]["mapping_file"]
+ESSENTIALITY_FILE = CONFIG["paths"]["essentiality_file"]
+AVG_WINDOW = CONFIG["analysis"]["avg_window"]
+THEME = CONFIG["app"]["theme"]
+EXTERNAL_STYLESHEETS = CONFIG["app"]["external_stylesheets"]
+GRAPH_CONFIG = CONFIG["app"]["graphs"]
+SCENARIOS_ENABLED = isinstance(CONFIG.get("scenarios"), dict)
+SCENARIO_YEAR = CONFIG["scenarios"].get("reference_year", 2026) if SCENARIOS_ENABLED else 2026
+SCENARIO_EXCLUDE_TYPES = set(CONFIG["scenarios"].get("exclude_types", ["Income"])) if SCENARIOS_ENABLED else set()
+N8N_ENABLED = isinstance(CONFIG.get("n8n"), dict)
+SERVER_CONFIG = CONFIG["app"]["server"]
 
 # ── Data Pipeline ─────────────────────────────────────────────────────────
 
 print("Loading data...")
-df = load_combined(BIGCSV, YTD_FILE if YTD_FILE.exists() else None)
+
+df_ledger = load_working_ledger(latest_only=True)
+try:
+    df_raw = load_raw_exports()
+except FileNotFoundError:
+    df_raw = None
+
+if df_ledger is None and df_raw is None:
+    raise RuntimeError(
+        "No working ledger and no raw bank exports found. "
+        "Place CSV exports in raw_bank_exports/ or create a ledger in working_ledger/."
+    )
+
+if df_raw is not None:
+    df = merge_new_transactions(df_ledger if df_ledger is not None else pd.DataFrame(), df_raw)
+else:
+    df = df_ledger
+
 mapping = load_mapping(MAPPING_FILE)
-df = categorize_dataframe(df, mapping)
+df = categorize_unknowns(df, mapping)
+df = sort_transactions(df)
 
 stats = get_categorization_stats(df)
 print(f"Loaded {stats['total_transactions']} transactions "
@@ -80,10 +116,10 @@ costs_avg = costs_mthly.rolling(AVG_WINDOW).mean().round(0)
 df = sort_transactions(df)
 unknowns = get_unknown_transactions(df)
 
-# Build baseline aggregates for scenario tab (exclude Income, use 2025 average)
+# Build baseline aggregates for scenario tab (exclude configured reference year average)
 baseline_data = []
-# Filter to 2025 data only
-df_2025 = df[df[COLS["value_date"]].dt.year == 2026]
+# Filter to configured reference year only
+df_2025 = df[df[COLS["value_date"]].dt.year == SCENARIO_YEAR]
 costs_2025_subtypes = (
     df_2025.pivot_table(
         columns=[COLS["type"], COLS["subtype"]],
@@ -94,57 +130,65 @@ costs_2025_subtypes = (
     .resample("1ME").sum()
 )
 
-# Load essentiality defaults from CSV
+# Load essentiality defaults from CSV when available
 essentiality_defaults = {}
-if ESSENTIALITY_FILE.exists():
+if ESSENTIALITY_FILE is not None and ESSENTIALITY_FILE.exists():
     ess_df = pd.read_csv(ESSENTIALITY_FILE)
     for _, row in ess_df.iterrows():
         key = f"{row['type']}/{row['subtype']}"
         essentiality_defaults[key] = row["essentiality"]
 
-for (spending_type, subtype), col_data in costs_2025_subtypes.items():
-    if spending_type == "Income":  # Skip income for scenario planning
-        continue
-    baseline_amount = col_data.mean()
-    key = f"{spending_type}/{subtype}"
-    baseline_data.append({
-        "type": spending_type,
-        "subtype": subtype,
-        "baseline": -baseline_amount,  # Flip sign: show expenses as positive
-        "scenario_amount": -baseline_amount,
-        "delta": 0,
-        "essentiality": essentiality_defaults.get(key, "adjustable"),
-    })
+if SCENARIOS_ENABLED:
+    for (spending_type, subtype), col_data in costs_2025_subtypes.items():
+        if spending_type in SCENARIO_EXCLUDE_TYPES:  # Skip configured excluded types for scenario planning
+            continue
+        baseline_amount = col_data.mean()
+        key = f"{spending_type}/{subtype}"
+        baseline_data.append({
+            "type": spending_type,
+            "subtype": subtype,
+            "baseline": -baseline_amount,  # Flip sign: show expenses as positive
+            "scenario_amount": -baseline_amount,
+            "delta": 0,
+            "essentiality": essentiality_defaults.get(key, "adjustable"),
+        })
 
-baseline_df = pd.DataFrame(baseline_data).sort_values(["type", "subtype"]).reset_index(drop=True)
+    baseline_df = pd.DataFrame(baseline_data).sort_values(["type", "subtype"]).reset_index(drop=True)
 
-# Prepare initial table data for scenario tab
-initial_scenario_table_data = []
-for _, row in baseline_df.iterrows():
-    baseline_amount = row["baseline"]
-    initial_scenario_table_data.append({
-        "type": row["type"],
-        "subtype": row["subtype"],
-        "essentiality": row["essentiality"],
-        "baseline": round(baseline_amount, 0),
-        "scenario_amount": round(baseline_amount, 0),
-        "delta": 0,
-    })
+    # Prepare initial table data for scenario tab
+    initial_scenario_table_data = []
+    for _, row in baseline_df.iterrows():
+        baseline_amount = row["baseline"]
+        initial_scenario_table_data.append({
+            "type": row["type"],
+            "subtype": row["subtype"],
+            "essentiality": row["essentiality"],
+            "baseline": round(baseline_amount, 0),
+            "scenario_amount": round(baseline_amount, 0),
+            "delta": 0,
+        })
 
-# Calculate average monthly income for income ceiling indicator
-income_2025 = -df_2025[df_2025[COLS["type"]] == "Income"][COLS["amount"]].sum() / max(df_2025[COLS["value_date"]].dt.month.nunique(), 1) if not df_2025.empty else 0
+    # Calculate average monthly income for income ceiling indicator
+    income_2025 = -df_2025[df_2025[COLS["type"]] == "Income"][COLS["amount"]].sum() / max(df_2025[COLS["value_date"]].dt.month.nunique(), 1) if not df_2025.empty else 0
+else:
+    initial_scenario_table_data = []
+    income_2025 = 0
 
 # ── App Setup ─────────────────────────────────────────────────────────────
 
-load_figure_template("darkly")
+theme_stylesheet = getattr(dbc.themes, THEME.upper(), None)
+figure_theme = THEME.lower()
+load_figure_template(figure_theme)
+
+external_stylesheets = []
+if theme_stylesheet is not None:
+    external_stylesheets.append(theme_stylesheet)
+external_stylesheets.extend(EXTERNAL_STYLESHEETS)
 
 app = Dash(
     __name__,
     assets_folder=str(_PKG_DIR / "assets"),
-    external_stylesheets=[
-        dbc.themes.DARKLY,
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
-    ],
+    external_stylesheets=external_stylesheets,
     suppress_callback_exceptions=True,
 )
 
@@ -225,13 +269,13 @@ tab_overview = dbc.Tab(label="Overview", tab_id="tab-overview", children=[
 
     # Time series
     dbc.Row([
-        dbc.Col(dcc.Graph(id="ts-chart", figure={}, config={"displayModeBar": False}), md=12),
+        dbc.Col(dcc.Graph(id="ts-chart", figure={}, config={"displayModeBar": GRAPH_CONFIG.get("display_mode_bar", False)}), md=12),
     ]),
 
     # Comparison + Sunburst
     dbc.Row([
-        dbc.Col(dcc.Graph(id="comparison-chart", figure={}, config={"displayModeBar": False}), md=8),
-        dbc.Col(dcc.Graph(id="sunburst-chart", figure={}, config={"displayModeBar": False}), md=4),
+        dbc.Col(dcc.Graph(id="comparison-chart", figure={}, config={"displayModeBar": GRAPH_CONFIG.get("display_mode_bar", False)}), md=8),
+        dbc.Col(dcc.Graph(id="sunburst-chart", figure={}, config={"displayModeBar": GRAPH_CONFIG.get("display_mode_bar", False)}), md=4),
     ]),
 ])
 
@@ -467,7 +511,7 @@ tab_transactions = dbc.Tab(label="Transactions", tab_id="tab-transactions", chil
         dbc.Col(month_selector("tx-month-input"), md=3, id="tx-month-wrapper"),
         dbc.Col(
             dbc.Button(
-                "📥 Export Deduped CSV",
+                "📥 Save Working Ledger",
                 id="export-csv-btn",
                 color="primary",
                 size="sm",
@@ -619,12 +663,12 @@ tab_unmapped = dbc.Tab(
                     className="section-sub",
                 ),
                 dcc.Graph(id="unknowns-chart", figure=make_unknowns_bar(unknowns)),
-            ], md=7),
+            ], md=12 if not N8N_ENABLED else 7),
             dbc.Col([
                 html.H5("n8n Export", className="section-title"),
                 html.P(
                     "Unknown transactions are auto-exported to "
-                    "data/unknowns_for_n8n.json on startup. "
+                    f"{CONFIG['paths']['unknowns_for_n8n']} on startup. "
                     "Use this file as webhook payload in your n8n workflow.",
                     className="section-sub",
                 ),
@@ -640,7 +684,7 @@ tab_unmapped = dbc.Tab(
                         ], style={"fontSize": "13px"}),
                     ])
                 ], className="kpi-card", style={"marginTop": "16px"}),
-            ], md=5),
+            ], md=5) if N8N_ENABLED else None,
         ]),
     ],
 )
@@ -663,7 +707,7 @@ app.layout = html.Div([
     dbc.Tabs(
         id="main-tabs",
         active_tab="tab-overview",
-        children=[tab_overview, tab_aggregates,tab_transactions, tab_mapping, tab_unmapped, scenario_layout(initial_scenario_table_data)],
+        children=[tab_overview, tab_aggregates, tab_transactions, tab_mapping, tab_unmapped] + ([scenario_layout(initial_scenario_table_data)] if SCENARIOS_ENABLED else []),
         className="main-tabs",
     ),
 
@@ -673,7 +717,7 @@ app.layout = html.Div([
         "overrides": {},
         "essentiality": essentiality_defaults,  # Initialize with CSV defaults
         "baseline_income": float(income_2025) if income_2025 > 0 else -float(income_2025),
-    }),
+    }) if SCENARIOS_ENABLED else None,
 ], className="app-container")
 
 
@@ -694,10 +738,10 @@ def reload_mapping(n_clicks):
     # Reload mapping.csv
     mapping = load_mapping(MAPPING_FILE)
 
-    # Re-categorize all transactions
-    df = categorize_dataframe(df, mapping)
+    # Re-categorize only currently unknown transactions
+    df = categorize_unknowns(df, mapping)
 
-    print(f"Remapped: {len(mapping['keyword'].dropna())} rules applied")
+    print(f"Remapped unknowns: {len(mapping['keyword'].dropna())} rules applied")
 
     return mapping.to_dict("records")
 
@@ -733,7 +777,7 @@ def update_sunburst(_month):
     Input("tx-month-input", "value"),
 )
 def update_table_filter(month):
-    query = "{Buchungstag} scontains " + pd.Timestamp(month).date().__str__()[:-3]
+    query = "{Buchungsdatum} scontains " + pd.Timestamp(month).date().__str__()[:-3]
     sort_by = [{"column_id": COLS["amount"], "direction": "asc"}]
     return query, sort_by
 
@@ -764,10 +808,14 @@ def export_deduped_csv(n_clicks):
     dropped_count = original_count - len(deduped)
     print(f"Deduplication: dropped {dropped_count} exact duplicate lines ({dropped_count/original_count*100:.1f}%)")
     
-    # Return as CSV download
+    # Persist ledger snapshot for user workflow
+    ledger_path = save_ledger(deduped)
+    print(f"Saved working ledger to {ledger_path}")
+
+    # Return as CSV download as well
     return dcc.send_data_frame(
         deduped.to_csv,
-        filename=f"finance_deduped_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        filename=f"finance_ledger_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
         index=False,
     )
 
@@ -776,7 +824,11 @@ def export_deduped_csv(n_clicks):
 
 def main():
     """Entry point for `uvx finance-dashboard` or `finance-dashboard` CLI."""
-    app.run(debug=True, host="0.0.0.0", port=8050)
+    app.run(
+        debug=SERVER_CONFIG.get("debug", False),
+        host=SERVER_CONFIG.get("host", "0.0.0.0"),
+        port=SERVER_CONFIG.get("port", 8050),
+    )
 
 
 if __name__ == "__main__":

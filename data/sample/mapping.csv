@@ -1,7 +1,0 @@
-row,spending_type,keyword,subtype
-Auftraggeber,Food,Aldi,supermarkt
-Auftraggeber,Food,ALDI,supermarkt
-Auftraggeber,Rent,Miete,rent
-Auftraggeber,Auto,Aral
-Verwendungszweck,Income,Gehalt,nebenjob
-Zahlungspflichtige*r,CustomType,SomeDude
